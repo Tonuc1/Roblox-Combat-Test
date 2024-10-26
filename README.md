@@ -1,2 +1,1 @@
-- These are all the scripts in the game I'm submitting to hiddendevs. Please consider this is my first time using github so forgive me if I'm terrible at organizing.
-- This is from an old project, and of course, I didn't include some of the instances mentioned in the scripts (animations, folders, parts, etc.)
+- Fixed it
