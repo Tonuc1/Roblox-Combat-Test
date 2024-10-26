@@ -1,3 +1,4 @@
+-- Fixed it. This script goes into ServerScriptService and works with a localscript given to any weapon plus a module script in said weapon called WeaponSettings.
 local RS = game:GetService("ReplicatedStorage")
 local StarterPlayer = game:GetService("StarterPlayer")
 local PS = game:GetService("Players")
