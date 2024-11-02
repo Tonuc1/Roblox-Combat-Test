@@ -1,10 +1,13 @@
 -- This is a simple grabbing script I made with other random stuff cuz i didn't know what else to add. I tried my best to put everything in a single 
 --script, although there's a server script for the remote events plus two module scripts for other things (camera effects and the crater effect.)
+
+-- There's also a module script for the character that makes a rig class, stores the animations and can store functions for crouching and other actions.
 local runSer = game:GetService("RunService")
 local CAS = game:GetService("ContextActionService")
 local PS = game:GetService("Players") 
 local RS = game:GetService("ReplicatedStorage")
 local CPS = game:GetService("ContentProvider")
+local UIS = game:GetService("UserInputService")
 local player = PS.LocalPlayer
 local cam = workspace.CurrentCamera
 local mouse = player:GetMouse()
@@ -20,26 +23,24 @@ local actionsEvent = RS:WaitForChild("playerActionEvent") -- Remote event
 local animations = character:WaitForChild("Animations") -- Animations folder in characterscripts
 local objectHeld = character:WaitForChild("ObjectHeld") -- Object value stored in the character
 local cameraFX = require(playergui.CameraFX) -- Module script for camera effects
+local module = character:WaitForChild("characterFunctions")
+local characterFunctions = require(module)
+local rig = characterFunctions.NewRig(character)
 local raycastParams = RaycastParams.new()
 raycastParams.FilterType = Enum.RaycastFilterType.Include
+rig:LoadAnimations()
+
+
 
 -- function for loading all the animations in the animation folder and adding them to a table.
-local Animationtracks = function()
-	local trackstable = {}
-	for i, v in animations:GetChildren() do
-	local track = character.Humanoid.Animator:LoadAnimation(v)
-	trackstable[v.Name] = track
-	end
-	return trackstable
-end
--- calling the function to get the animations table.
-local tracks = Animationtracks()
 
-local grabOffset = CFrame.new(0,0,-2) -- the offset used when grabbing an object physically
-local grabDistance = 5 -- How far you have to be from a part to grab it
+-- calling the function to get the animations table.
+
+local grabOffset = CFrame.new(0,0,-3) -- the offset used when grabbing an object physically
+local grabDistance = 10 -- How far you have to be from a part to grab it
 
 -- This script is so you can switch hold modes, between physical and telekinesis. To use telekinesis you just hold click on an object.
--- To hold objects physically you have to stay still and click an unanchored part with the grabbable tag. You'll walk towards it and pick it up.
+-- To hold objects physically you have to get close to an unanchored part or rig then left click on it.
 -- When you're holding an object you can either throw it (holding or clicking left mouse) or drop it (with T).
 local function switchHoldMode(ActionName, InputState, InputObject)
 	if InputState == Enum.UserInputState.End then
@@ -58,7 +59,7 @@ local function dropObject(ActionName, InputState, InputObject)
 		local part = objectHeld.Value
 		if part then
 			local weld = character.HumanoidRootPart:FindFirstChild("WeldConstraint")
-			tracks.hold:Stop()
+			rig.Animations.hold:Stop()
 			if weld then
 			actionsEvent:FireServer("Unweld", weld)
 			end
@@ -74,14 +75,14 @@ local function throwObject()
 	local mousedown = true
 	local counter = 1
 	local weld = character.HumanoidRootPart:FindFirstChild("WeldConstraint")
-	tracks.hold:Stop()
-	tracks.throw:Play()
-	tracks.throw:GetMarkerReachedSignal("TopMovement"):Connect(function()
+	rig.Animations.hold:Stop()
+	rig.Animations.throw:Play()
+	rig.Animations.throw:GetMarkerReachedSignal("TopMovement"):Connect(function()
 
 		
 
 		if mousedown then
-			tracks.throw:AdjustSpeed(0)
+			rig.Animations.throw:AdjustSpeed(0)
 		end
 		
 	end)
@@ -89,7 +90,7 @@ local function throwObject()
 	c = mouse.Button1Up:Connect(function()
 		mousedown = false
 		objectHeld.Value = nil
-		tracks.throw:AdjustSpeed(1)
+		rig.Animations.throw:AdjustSpeed(1)
 		-- Communicating with the server to destroy the weldconstraint connecting the object to the character
 		actionsEvent:FireServer("Unweld", weld)
 		c:Disconnect()
@@ -111,6 +112,14 @@ local function throwObject()
 	end
 
 end
+-- script to alternate between crouching and uncrouching, the actual crouching script is stored in a module.
+local function Crouch(ActionName, InputState, InputObject)
+	if InputState == Enum.UserInputState.Begin then
+		rig:Crouch()
+	elseif InputState == Enum.UserInputState.End then
+		rig:Uncrouch()
+	end
+end
 
 -- Binding the function for switching hold mode
 CAS:BindAction("Switch Hold Mode", switchHoldMode, false, Enum.KeyCode.V)
@@ -130,32 +139,9 @@ mouse.Button1Down:Connect(function()
 			local giveup = false
 		local position = grabPart.Position
 			local distance = (character.HumanoidRootPart.Position - position).Magnitude
-		
-		character.Humanoid:MoveTo(position)
-			
-			task.spawn(function()
-				print("Spawn function running")
-				wait(5)
-
-				if grabsuccessful == false then
-					print("Gave Up")
-					character.Humanoid:MoveTo(character.HumanoidRootPart.Position)
-					giveup = true
-				end
-			end)
-			
-			while wait(.5)	do
-				distance = (character.HumanoidRootPart.Position - grabPart.Position).Magnitude
-				print("Running while loop")
 				if distance <= grabDistance then
 					grabsuccessful = true
-					break
-				elseif giveup == true then
-					break
 				end
-			end
-		
-		
 		
 		
 		if grabsuccessful then
@@ -166,7 +152,7 @@ mouse.Button1Down:Connect(function()
 				att0.Parent = grabPart
 				alignPosition.Mode = Enum.PositionAlignmentMode.OneAttachment
 				alignPosition.Attachment0 = att0
-				alignPosition.Responsiveness = 1
+				alignPosition.Responsiveness = 3
 				alignPosition.Parent = grabPart
 				
 			print("Grab was successful")
@@ -187,10 +173,10 @@ mouse.Button1Down:Connect(function()
 				actionsEvent:FireServer("Set Network owner", grabPart)
 								end
 				
-		tracks.pickUp:Play()
-		wait(tracks.pickUp.Length)
+		rig.Animations.pickUp:Play()
+		wait(rig.Animations.pickUp.Length)
 		CAS:BindAction("Drop Object", dropObject, false, Enum.KeyCode.T)
-		tracks.hold:Play()
+		rig.Animations.hold:Play()
 		alignPosition:Destroy()
 		att0:Destroy()
 				character.Humanoid.WalkSpeed = ws
@@ -234,7 +220,7 @@ mouse.Button1Down:Connect(function()
 			end
 	elseif currentHoldMode == "Physical" and objectHeld.Value then
 		-- Throw Object
-		if not tracks.pickUp.IsPlaying then
+		if not rig.Animations.pickUp.IsPlaying then
 		throwObject()
 		end
 		end
@@ -247,7 +233,7 @@ objectHeld.Changed:Connect(function(value)
 	if value then
 	value.Destroying:Connect(function()
 		print("Destroying")
-		for _, animation in pairs(tracks) do
+		for _, animation in pairs(rig.Animations) do
 			animation:Stop()
 		end
 	end)
@@ -263,6 +249,7 @@ actionsEvent.OnClientEvent:Connect(function(instruction, p2, p3, p4)
 	end
 end)
 
+CAS:BindAction("Crouch", Crouch, false, Enum.KeyCode.C)
 -- Preloading animations and sound effects
 function preload(table_)
 	for _, v in pairs(table_) do
